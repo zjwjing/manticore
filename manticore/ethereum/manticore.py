@@ -102,7 +102,8 @@ class ManticoreEVM(ManticoreBase):
 
     Usage Ex::
 
-        from manticore.ethereum import ManticoreEVM, ABI
+        from manticore.ethereum.enums import TxType, TxResult
+from manticore.ethereum import ManticoreEVM, ABI
         m = ManticoreEVM()
         #And now make the contract account to analyze
         source_code = '''
@@ -727,7 +728,7 @@ class ManticoreEVM(ManticoreBase):
         if name in self._accounts:
             # Account name already used
             raise EthereumError("Name already used")
-        self._transaction("CREATE", owner, balance, address, data=init, gas=gas)
+        self._transaction(TxType.CREATE, owner, balance, address, data=init, gas=gas)
         # TODO detect failure in the constructor
         if self.count_ready_states():
             self._accounts[name] = EVMContract(
@@ -797,7 +798,7 @@ class ManticoreEVM(ManticoreBase):
         :raises NoAliveStates: if there are no alive states to execute
         """
         self._transaction(
-            "CALL", caller, value=value, address=address, data=data, gas=gas, price=price
+            TxType.CALL, caller, value=value, address=address, data=data, gas=gas, price=price
         )
 
     def create_account(self, balance=0, address=None, code=None, name=None, nonce=None):
@@ -947,10 +948,10 @@ class ManticoreEVM(ManticoreBase):
             raise TypeError(f"Price invalid type: {type(price)}")
 
         # Check argument consistency and set defaults ...
-        if sort not in ("CREATE", "CALL"):
+        if sort not in (TxType.CREATE, TxType.CALL):
             raise ValueError(f"unsupported transaction type: {sort}")
 
-        if sort == "CREATE":
+        if sort == TxType.CREATE:
             # When creating data is the init_bytecode + arguments
             if len(data) == 0:
                 raise EthereumError("An initialization bytecode is needed for a CREATE")
@@ -994,7 +995,7 @@ class ManticoreEVM(ManticoreBase):
             # that were crated by a human have the same address in all states.
             # This diverges from the yellow paper but at least we check that we
             # are not trying to create an already used address here
-            if sort == "CREATE":
+            if sort == TxType.CREATE:
                 if address in world.accounts:
                     # Address already used
                     raise EthereumError(
@@ -1472,8 +1473,8 @@ class ManticoreEVM(ManticoreBase):
         # Fixme incomplete.
         """
         if tx.is_human:
-            if tx.sort == "CREATE":
-                if tx.result == "RETURN":
+            if tx.sort == TxType.CREATE:
+                if tx.result == TxResult.RETURN:
                     world.set_code(tx.address, tx.return_data)
                 else:
                     world.delete_account(tx.address)
@@ -1498,7 +1499,7 @@ class ManticoreEVM(ManticoreBase):
         """INTERNAL USE"""
         # logger.debug("%s", state.platform.current_vm)
         # TODO move to a plugin
-        at_init = state.platform.current_transaction.sort == "CREATE"
+        at_init = state.platform.current_transaction.sort == TxType.CREATE
         coverage_context_name = "evm.coverage"
         with self.locked_context(coverage_context_name, list) as coverage:
             if (state.platform.current_vm.address, instruction.pc, at_init) not in coverage:
@@ -1558,7 +1559,7 @@ class ManticoreEVM(ManticoreBase):
         world = state.platform
         address = world.current_vm.address
         pc = world.current_vm.pc
-        at_init = world.current_transaction.sort == "CREATE"
+        at_init = world.current_transaction.sort == TxType.CREATE
         output = io.StringIO()
         write_findings(output, "", address, pc, at_init)
         md = self.get_metadata(address)
@@ -1755,7 +1756,7 @@ class ManticoreEVM(ManticoreBase):
             if self.fix_unsound_symbolication(st):
                 last_tx = st.platform.last_transaction
                 # Do not generate killed state if only_alive_states is True
-                if only_alive_states and last_tx.result in {"REVERT", "THROW", "TXERROR"}:
+                if only_alive_states and last_tx.result in {TxResult.REVERT, TxResult.THROW, TxResult.TXERROR}:
                     return
                 logger.debug("Generating testcase for state_id %d", state_id)
                 message = last_tx.result if last_tx else "NO STATE RESULT (?)"
